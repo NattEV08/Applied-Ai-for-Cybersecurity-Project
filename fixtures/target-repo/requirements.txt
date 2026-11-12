@@ -1,0 +1,3 @@
+# Training-only example. NEVER install these deliberately outdated versions.
+Django==2.2.0
+urllib3==1.25.8

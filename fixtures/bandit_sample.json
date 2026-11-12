@@ -1,0 +1,18 @@
+{
+  "results": [
+    {
+      "test_id": "B105",
+      "issue_severity": "LOW",
+      "issue_confidence": "MEDIUM",
+      "issue_cwe": {
+        "id": 259,
+        "link": "https://cwe.mitre.org/data/definitions/259.html"
+      },
+      "issue_text": "Synthetic example: possible hardcoded password string",
+      "filename": "fixtures/target-repo/app.py",
+      "line_number": 4,
+      "more_info": "https://bandit.readthedocs.io/en/latest/plugins/b105_hardcoded_password_string.html"
+    }
+  ],
+  "errors": []
+}
