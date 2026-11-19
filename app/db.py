@@ -30,10 +30,17 @@ CREATE TABLE IF NOT EXISTS findings (
 """
 FIELDS=('asset_id','scanner','finding_id','severity','cve_id','cwe_id','cvss_score','package','installed_version','fixed_version','file_path','description','reference_url')
 
+class _ClosingConnection(sqlite3.Connection):
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        try:
+            return super().__exit__(exc_type, exc_val, exc_tb)
+        finally:
+            self.close()
+
 def connect(db_path=DEFAULT_DB):
     db_path=Path(db_path)
     db_path.parent.mkdir(parents=True,exist_ok=True)
-    conn=sqlite3.connect(db_path)
+    conn=sqlite3.connect(db_path, factory=_ClosingConnection)
     conn.row_factory=sqlite3.Row
     conn.execute('PRAGMA foreign_keys = ON')
     return conn
@@ -43,16 +50,24 @@ def initialize(db_path=DEFAULT_DB):
         conn.executescript(SCHEMA)
         conn.executemany('INSERT OR IGNORE INTO assets VALUES (?,?,?,?,?,?,?)',ASSETS)
 
+UPSERT_FINDING_SQL = (
+    "INSERT INTO findings ("
+    "fingerprint, asset_id, scanner, finding_id, severity, cve_id, cwe_id, "
+    "cvss_score, package, installed_version, fixed_version, file_path, description, reference_url"
+    ") VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) "
+    "ON CONFLICT(fingerprint) DO UPDATE SET "
+    "severity=excluded.severity, cvss_score=excluded.cvss_score, "
+    "fixed_version=excluded.fixed_version, description=excluded.description, "
+    "reference_url=excluded.reference_url"
+)
+
 def ingest(items,db_path=DEFAULT_DB):
-    columns=('fingerprint',)+FIELDS
-    cols=', '.join(columns)
-    placeholders=', '.join('?' for _ in columns)
     with connect(db_path) as conn:
         for item in items:
             identity=[item.get(k) for k in ('asset_id','scanner','finding_id','package','installed_version','file_path')]
             fingerprint=hashlib.sha256(json.dumps(identity,ensure_ascii=False).encode('utf8')).hexdigest()
             values=(fingerprint,)+tuple(item.get(field) for field in FIELDS)
-            conn.execute(f'INSERT INTO findings ({cols}) VALUES ({placeholders}) ON CONFLICT(fingerprint) DO UPDATE SET severity=excluded.severity,cvss_score=excluded.cvss_score,fixed_version=excluded.fixed_version,description=excluded.description,reference_url=excluded.reference_url',values)
+            conn.execute(UPSERT_FINDING_SQL, values)
     return len(items)
 
 def fetch(db_path=DEFAULT_DB):
